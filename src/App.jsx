@@ -81,8 +81,8 @@ function buildRowsFromWaypointsAndLegs(waypoints, legs) {
 }
 
 export default function App() {
-  const FLIGHTS_URL = "http://localhost:3000/api/flights";
-  const DETAILS_URL = "http://localhost:3000/api/flightDetails";
+  const FLIGHTS_URL = "/api/flights";
+  const DETAILS_URL = "/api/flightDetails";
 
   const [flights, setFlights] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
