@@ -59,3 +59,65 @@ jobs:
           tags: |
             ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPO }}:latest
             ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPO }}:${{ env.IMAGE_TAG }}
+
+  deploy:
+    needs: build_and_push
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Compute image URI
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          IMAGE_URI=${ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPO }}:${GITHUB_SHA::7}
+          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+
+      - name: Fetch current task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition ${{ secrets.ECS_TASK_FAMILY }} \
+            --query taskDefinition \
+            --output json > taskdef.json
+
+      - name: Create new task definition revision
+        run: |
+          cat taskdef.json | jq '
+            del(
+              .taskDefinitionArn,
+              .revision,
+              .status,
+              .requiresAttributes,
+              .compatibilities,
+              .registeredAt,
+              .registeredBy
+            )
+            | (.containerDefinitions[] | select(.name=="'${{ secrets.ECS_CONTAINER_NAME }}'") | .image) = env.IMAGE_URI
+          ' > taskdef-new.json
+
+          aws ecs register-task-definition \
+            --cli-input-json file://taskdef-new.json > taskdef-registered.json
+
+          NEW_TASK_DEF=$(cat taskdef-registered.json | jq -r '.taskDefinition.taskDefinitionArn')
+          echo "NEW_TASK_DEF=$NEW_TASK_DEF" >> $GITHUB_ENV
+
+      - name: Update ECS service
+        run: |
+          aws ecs update-service \
+            --cluster ${{ secrets.ECS_CLUSTER }} \
+            --service ${{ secrets.ECS_SERVICE }} \
+            --task-definition $NEW_TASK_DEF
+
+      - name: Wait for service to stabilize
+        run: |
+          aws ecs wait services-stable \
+            --cluster ${{ secrets.ECS_CLUSTER }} \
+            --services ${{ secrets.ECS_SERVICE }}
