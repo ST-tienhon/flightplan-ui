@@ -392,7 +392,7 @@ export default function App() {
                       <span className="mono">{f.callsign}</span>{" "}
                       <span className="muted">-</span> {f.dep} → {f.arr}
                     </div>
-                    <div className="listItemSub mono">id: {f.id}</div>
+                    {/* <div className="listItemSub mono">id: {f.id}</div> */}
                   </button>
                 );
               })}
@@ -521,7 +521,7 @@ export default function App() {
                 checked={showWaypoints}
                 onChange={(e) => setShowWaypoints(e.target.checked)}
               />
-              Intermediate Fixes
+              Fixes/ Navaids
             </label>
 
             <label className="checkbox">
