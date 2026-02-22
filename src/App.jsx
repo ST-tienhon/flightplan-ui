@@ -542,7 +542,7 @@ export default function App() {
             ref={globeRef}
             width={globeW}
             height={globeH}
-            globeImageUrl="https://unpkg.com/three-globe/example/img/earth-dark.jpg"
+            globeImageUrl="https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg"
             backgroundImageUrl="https://unpkg.com/three-globe/example/img/night-sky.png"
             // --- PATHS (from waypoint list) ---
             pathsData={pathsData}
@@ -550,7 +550,7 @@ export default function App() {
             pathPointLng={(p) => p[0]}
             pathPointLat={(p) => p[1]}
             // Elevate ALL points (including start/end)
-            pathPointAlt={() => 0.1} // try 0.02–0.12
+            pathPointAlt={() => 0.01} // try 0.02–0.12
 
             // Path styling
             pathStroke={1.2}
@@ -567,7 +567,7 @@ export default function App() {
             labelLng="lng"
             labelText={(d) => d.text}
             // Waypoints slightly higher than airways to reduce overlap
-            labelAltitude={(d) => (d.type === "waypoint" ? 0.1 : 0.1)}
+            labelAltitude={(d) => (d.type === "waypoint" ? 0.01 : 0.01)}
             // Waypoints slightly larger than airways
             labelSize={(d) => {
               if (d.type === "waypoint") {
@@ -603,7 +603,7 @@ export default function App() {
             hexPolygonsData={airportHexPolygons}
             hexPolygonResolution={6}
             hexPolygonMargin={0.05}
-            hexPolygonAltitude={0.1}
+            hexPolygonAltitude={0.01}
             hexPolygonColor={(d) =>
               d.role === "departure"
                 ? "rgba(0, 170, 255, 0.65)"
