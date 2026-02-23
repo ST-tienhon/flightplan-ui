@@ -38,7 +38,7 @@
 sequenceDiagram
     participant A as Client <br/> (FlightPlan-UI)
     participant B as Server <br/> (FlightPlan-Server)
-    participant C as External Service <br/> (ClientSwimAPI)
+    participant C as External Service <br/> (SwimAPI)
     A->>B: GET /api/flights <br/> GET /api/flightDetails
     activate B
     B->>C: GET /flight-manager/displayAll <br/> GET /geopoints/list
@@ -124,8 +124,11 @@ Enhancement:
 ├─ .github/workflows/
 │  └─ ci.yml                         # Github Actions
 │
+├─ public/
+│
 ├─ src/
-│  ├─ App.css
+│  ├─ assets/
+│  ├─ tests/                         # Test cases
 │  ├─ App.jsx                        # Main client application
 │  ├─ index.css
 │  ├─ main.jsx
@@ -149,7 +152,47 @@ Enhancement:
 | GET    | /api/flights           | Summarized list of all flights    |
 | GET    | /api/flightDetails?id= | Flight details of selected flight |
 
-#### 2.2.2 Flights Panel
+#### 2.2.2 Frontend Application State Lifecycle
+```mermaid
+stateDiagram-v2
+    [*] --> LoadingFlights : Browser loads app
+    LoadingFlights --> DisplayFlights : GET /flights (success)
+    LoadingFlights --> FlightsError : GET /flights (fail)
+
+    FlightsError --> LoadingFlights : Refresh
+
+    %% --- Nested states for the Flights list + search ---
+    state DisplayFlights {
+        [*] --> UnfilteredList
+
+        UnfilteredList --> FilteredList : Search input (non-empty)
+        FilteredList --> UnfilteredList : Clear search / input empty
+
+       %% FilteredList --> FilteredList : Search input changed
+
+       %% note right of FilteredList
+       %%   List is derived from:
+       %%   flights + searchQuery
+       %%   (client-side filter)
+       %% end note
+    }
+    DisplayFlights --> LoadingDetails : User selects flight
+
+    LoadingDetails --> DetailsReady : GET <br/> /flightDetails?id= (success)
+
+    LoadingDetails --> DetailsError : GET <br/> /flightDetails?id= (fail)
+    DetailsError --> LoadingDetails : User reselects flight
+
+    state DetailsReady {
+        [*] --> DisplayDetails
+        --
+        [*] --> DisplayAirway : Build PathsData + LabelsData
+    }
+
+    DetailsReady --> LoadingDetails : User reselects flight
+```
+
+#### 2.2.3 Flights Panel
 ```mermaid
 sequenceDiagram
     participant A as Client <br/> (FlightPlan-UI)
@@ -157,11 +200,11 @@ sequenceDiagram
     A->>B: GET /api/flights
     B-->>A: JSON response [{id, callsign, departure, arrival}]
     activate A
-    note left of A: Displaying summarized fields
+    note left of A: Display summarized flights
     deactivate A
 ```
 
-#### 2.2.3 Flight Details Panel
+#### 2.2.4 Flight Details Panel
 ```mermaid
 ---
 config:
@@ -178,14 +221,63 @@ sequenceDiagram
     deactivate A
 ```
 
-#### 2.2.4 Flight Path Panel
+#### 2.2.5 Flight Path Panel
+PathsData contains the Airports, Fixes, Navaids lat lon in sequence for drawing the paths.
+```
+[[79.89, 7.18], [79.87, 7.16], [90.4, 4.41], [94.85, 3.27], [97.61, 3.44]]
+```
+LabelsData contains the Airports, Fixes, Navaids name and lat lon.
+```
+[{id: "wp-DEP", type: "waypoint", text: "DEP", lat: 7.18, lng: 79.89, …},
+{id: "wp-W1", type: "waypoint", text: "W1", lat: 7.16, lng: 79.87, …},
+{id: "wp-W2", type: "waypoint", text: "W2", lat: 4.41, lng: 90.4, …},
+{id: "wp-W3", type: "waypoint", text: "W3", lat: 3.27, lng: 94.85, …},
+{id: "wp-W4", type: "waypoint", text: "W4", lat: 3.44, lng: 97.61, …},
+{id: "wp-ARR", type: "waypoint", text: "ARR", lat: 2.21, lng: 101.56, …},
+{id: "airway-0-A1", type: "airway", text: "A1", lat: 5.785, lng: 85.135, …},
+{id: "airway-1-A1", type: "airway", text: "A1", lat: 3.84, lng: 92.625, …},
+{id: "airway-2-A2", type: "airway", text: "A2", lat: 3.355, lng: 96.22999999999999, …}]
+```
+Visual representation of the Airway
+```mermaid
+flowchart LR
+
+    %% Styling
+    classDef dep fill:#0b3d91,color:#fff,stroke:#0b3d91,stroke-width:2px;
+    classDef arr fill:#2e8b57,color:#fff,stroke:#2e8b57,stroke-width:2px;
+    classDef wp fill:#f2f2f2,color:#111,stroke:#555,stroke-width:1.5px;
+    classDef airway fill:#f2f2f2,color:#111,stroke:#555,stroke-width:1px,font-size:10px;
+
+    %% Nodes
+    DEP((DEP)):::dep
+    W1((W1)):::wp
+    A1((A1)):::airway
+    W2((W2)):::wp
+    A1B((A1)):::airway
+    W3((W3)):::wp
+    A2((A2)):::airway
+    W4((W4)):::wp
+    ARR((ARR)):::arr
+
+    %% Route
+    DEP e1@--- W1 e2@--- A1 e3@--- W2 e4@--- A1B e5@--- W3 e6@--- A2 e7@--- W4 e8@--- ARR
+    e1@{ animation: slow }
+    e2@{ animation: slow }
+    e3@{ animation: slow }
+    e4@{ animation: slow }
+    e5@{ animation: slow }
+    e6@{ animation: slow }
+    e7@{ animation: slow }
+    e8@{ animation: slow }
+```
+
 Main component for visualization of airway route on a globe `globe.gl`.  
 Repository: https://github.com/vasturiano/globe.gl  
 
 Populate globe.gl properties with PathsData and LabelsData. Airway routes with labels will be drawn.  
 Enhancing UI/UX by:
-- Animated path for direction of flight.
-- Added colours for Arrival and Departure airports.
+- Animating path for direction of flight.
+- Adding colours for Arrival and Departure airports.
 - Center the path for convenience.
 
 
